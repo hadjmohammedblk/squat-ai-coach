@@ -108,5 +108,5 @@ if video_file:
 
             st_frame.image(image, channels="BGR")
             
-    cap.release()
-    st.success(f"اكتمل التحليل! التكرارات: {counter} | أعمق زاوية وصلتها: {min_angle:.1f}°")
+     st.success(f"اكتمل التحليل! التكرارات: {counter} | أعمق زاوية وصلتها: {min_angle:.1f}°")
+   cap.release()
