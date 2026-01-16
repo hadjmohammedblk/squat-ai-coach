@@ -1,18 +1,16 @@
-
-لقد أرسلت
 import os
-import sys
 import subprocess
+import sys
 
-# وظيفة تجبر السيرفر على تثبيت ما ينقصه فوراً
-def fix_imports():
+# 1. إجبار السيرفر على تثبيت المكتبات قبل أي شيء آخر
+def install_packages():
     try:
         import mediapipe
         import cv2
     except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "mediapipe==0.10.0", "opencv-python-headless"])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "mediapipe", "opencv-python-headless"])
 
-fix_imports()
+install_packages()
 
 import streamlit as st
 import mediapipe as mp
@@ -20,14 +18,14 @@ import cv2
 import numpy as np
 import tempfile
 
+# 2. إعداد واجهة المستخدم
 st.set_page_config(page_title="AI Squat Coach", page_icon="🏋️")
 st.title("المدرب الذكي لتحليل السكوات 🏋️")
 
-# تعريف الأدوات بأمان
+# 3. تعريف أدوات MediaPipe
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
-# دالة حساب الزاوية
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
     radians = np.arctan2(c[1]-b[1], c[0]-b[0]) - np.arctan2(a[1]-b[1], a[0]-b[0])
@@ -53,12 +51,14 @@ if video_file:
             
             if results.pose_landmarks:
                 landmarks = results.pose_landmarks.landmark
+                # نقاط الجسم (الورك، الركبة، الكاحل)
                 hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP].x, landmarks[mp_pose.PoseLandmark.LEFT_HIP].y]
                 knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE].x, landmarks[mp_pose.PoseLandmark.LEFT_KNEE].y]
                 ankle = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE].x, landmarks[mp_pose.PoseLandmark.LEFT_ANKLE].y]
                 
                 angle = calculate_angle(hip, knee, ankle)
                 min_angle = min(min_angle, angle)
+                
                 if angle > 160: stage = "up"
                 if angle < 90 and stage == 'up':
                     stage, counter = "down", counter + 1
