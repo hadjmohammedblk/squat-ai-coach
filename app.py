@@ -1,29 +1,24 @@
-import os
-import subprocess
-import sys
-
-# وظيفة لإجبار السيرفر على تثبيت النسخة الصحيحة والمستقرة
-def install_mediapipe():
-    try:
-        import mediapipe as mp
-    except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "mediapipe==0.10.0", "opencv-python-headless"])
-
-install_mediapipe()
-
 import streamlit as st
-import mediapipe as mp
 import cv2
 import numpy as np
 import tempfile
+import os
 
-# إعدادات الصفحة
+# إعداد الصفحة أولاً
 st.set_page_config(page_title="AI Squat Coach", page_icon="🏋️")
 st.title("المدرب الذكي لتحليل السكوات 🏋️")
 
-# تعريف الأدوات داخل دالة لضمان استدعائها بعد التثبيت
-mp_drawing = mp.solutions.drawing_utils
-mp_pose = mp.solutions.pose
+# استيراد mediapipe بطريقة تضمن عدم حدوث AttributeError
+try:
+    import mediapipe as mp
+    mp_pose = mp.solutions.pose
+    mp_drawing = mp.solutions.drawing_utils
+except AttributeError:
+    # في حال حدوث خطأ، نقوم بإعادة التحميل القسري
+    os.system("pip install --upgrade mediapipe")
+    import mediapipe as mp
+    mp_pose = mp.solutions.pose
+    mp_drawing = mp.solutions.drawing_utils
 
 def calculate_angle(a, b, c):
     a = np.array(a)
@@ -35,7 +30,7 @@ def calculate_angle(a, b, c):
         angle = 360 - angle
     return angle
 
-video_file = st.file_uploader("ارفع فيديو التمرين هنا...", type=['mp4', 'mov', 'avi'])
+video_file = st.file_uploader("ارفع فيديو التمرين (MP4)...", type=['mp4', 'mov', 'avi'])
 
 if video_file:
     tfile = tempfile.NamedTemporaryFile(delete=False)
@@ -59,7 +54,7 @@ if video_file:
             if results.pose_landmarks:
                 try:
                     landmarks = results.pose_landmarks.landmark
-                    # إحداثيات الورك، الركبة، والكاحل
+                    # تحديد النقاط: الورك، الركبة، الكاحل
                     hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x, landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
                     knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x, landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
                     ankle = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x, landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
@@ -72,10 +67,10 @@ if video_file:
                         stage = "down"
                         counter += 1
                     
+                    # عرض النتائج على الفيديو
                     cv2.putText(image, f'Reps: {counter}', (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
                     mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-                except Exception as e:
-                    pass
+                except: pass
 
             st_frame.image(image, channels="BGR")
             
