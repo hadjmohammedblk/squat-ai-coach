@@ -1,16 +1,15 @@
-
 import os
 import subprocess
 import sys
 
-# وظيفة لضمان تثبيت المكتبات قبل تشغيل الكود الأساسي
-def install_dependencies():
+# وظيفة لإجبار السيرفر على تثبيت النسخة الصحيحة والمستقرة
+def install_mediapipe():
     try:
-        import mediapipe
+        import mediapipe as mp
     except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "mediapipe", "opencv-python-headless"])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "mediapipe==0.10.0", "opencv-python-headless"])
 
-install_dependencies()
+install_mediapipe()
 
 import streamlit as st
 import mediapipe as mp
@@ -18,7 +17,11 @@ import cv2
 import numpy as np
 import tempfile
 
-# إعدادات MediaPipe
+# إعدادات الصفحة
+st.set_page_config(page_title="AI Squat Coach", page_icon="🏋️")
+st.title("المدرب الذكي لتحليل السكوات 🏋️")
+
+# تعريف الأدوات داخل دالة لضمان استدعائها بعد التثبيت
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
@@ -32,10 +35,7 @@ def calculate_angle(a, b, c):
         angle = 360 - angle
     return angle
 
-st.set_page_config(page_title="Squat AI Coach", page_icon="🏋️")
-st.title("المدرب الذكي لتحليل السكوات 🏋️")
-
-video_file = st.file_uploader("ارفع فيديو التمرين (MP4)...", type=['mp4', 'mov', 'avi'])
+video_file = st.file_uploader("ارفع فيديو التمرين هنا...", type=['mp4', 'mov', 'avi'])
 
 if video_file:
     tfile = tempfile.NamedTemporaryFile(delete=False)
@@ -56,23 +56,26 @@ if video_file:
             results = pose.process(image)
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             
-            try:
-                landmarks = results.pose_landmarks.landmark
-                hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x, landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
-                knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x, landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
-                ankle = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x, landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
-                
-                angle = calculate_angle(hip, knee, ankle)
-                if angle < min_angle: min_angle = angle
-                
-                if angle > 160: stage = "up"
-                if angle < 90 and stage == 'up':
-                    stage = "down"
-                    counter += 1
-                
-                cv2.putText(image, f'Reps: {counter}', (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-                mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-            except: pass
+            if results.pose_landmarks:
+                try:
+                    landmarks = results.pose_landmarks.landmark
+                    # إحداثيات الورك، الركبة، والكاحل
+                    hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].x, landmarks[mp_pose.PoseLandmark.LEFT_HIP.value].y]
+                    knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x, landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
+                    ankle = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x, landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
+                    
+                    angle = calculate_angle(hip, knee, ankle)
+                    if angle < min_angle: min_angle = angle
+                    
+                    if angle > 160: stage = "up"
+                    if angle < 90 and stage == 'up':
+                        stage = "down"
+                        counter += 1
+                    
+                    cv2.putText(image, f'Reps: {counter}', (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                    mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+                except Exception as e:
+                    pass
 
             st_frame.image(image, channels="BGR")
             
