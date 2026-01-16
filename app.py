@@ -4,22 +4,21 @@ import numpy as np
 import tempfile
 import mediapipe as mp
 
-# إعداد الصفحة
+# إعداد واجهة التطبيق
 st.set_page_config(page_title="AI Squat Coach", page_icon="🏋️")
 st.title("المدرب الذكي لتحليل السكوات 🏋️")
 
-# استدعاء حلول ميديا بايب بطريقة آمنة
-BasePose = mp.solutions.pose
-BaseDrawing = mp.solutions.drawing_utils
+# استدعاء الحلول بطريقة مباشرة لتجنب خطأ AttributeError
+mp_pose = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
 
 def calculate_angle(a, b, c):
     a, b, c = np.array(a), np.array(b), np.array(c)
     radians = np.arctan2(c[1]-b[1], c[0]-b[0]) - np.arctan2(a[1]-b[1], a[0]-b[0])
     angle = np.abs(radians*180.0/np.pi)
-    if angle > 180.0: angle = 360-angle
-    return angle
+    return 360-angle if angle > 180.0 else angle
 
-video_file = st.file_uploader("ارفع فيديو التمرين (MP4)...", type=['mp4'])
+video_file = st.file_uploader("ارفع فيديو التمرين هنا (MP4)...", type=['mp4', 'mov'])
 
 if video_file:
     tfile = tempfile.NamedTemporaryFile(delete=False)
@@ -28,13 +27,34 @@ if video_file:
     st_frame = st.empty()
     counter, stage = 0, None
 
-    with BasePose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
+    with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret: break
             
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = pose.process(image)
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            
+            if results.pose_landmarks:
+                try:
+                    landmarks = results.pose_landmarks.landmark
+                    # تحديد نقاط المفصل
+                    hip = [landmarks[mp_pose.PoseLandmark.LEFT_HIP].x, landmarks[mp_pose.PoseLandmark.LEFT_HIP].y]
+                    knee = [landmarks[mp_pose.PoseLandmark.LEFT_KNEE].x, landmarks[mp_pose.PoseLandmark.LEFT_KNEE].y]
+                    ankle = [landmarks[mp_pose.PoseLandmark.LEFT_ANKLE].x, landmarks[mp_pose.PoseLandmark.LEFT_ANKLE].y]
+                    
+                    angle = calculate_angle(hip, knee, ankle)
+                    if angle > 160: stage = "up"
+                    if angle < 90 and stage == 'up':
+                        stage, counter = "down", counter + 1
+                    
+                    cv2.putText(image, f'Reps: {counter}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+                    mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+                except Exception: pass
+            
+            st_frame.image(image, channels="BGR")
+    cap.release()            results = pose.process(image)
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             
             if results.pose_landmarks:
